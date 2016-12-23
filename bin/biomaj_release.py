@@ -113,7 +113,7 @@ class ReleaseService(object):
 
                 except Exception as e:
                     self.logger.error('Failed to get remote release for %s: %s' % (bank_name, str(e)))
-
+                # TODO check bank update average interval and bank update duration and update cron to the best
             next_run = current + datetime.timedelta(days=1)
             while current < next_run:
                 time.sleep(3600)
