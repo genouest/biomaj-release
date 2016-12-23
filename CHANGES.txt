@@ -1,0 +1,2 @@
+3.0.0:
+  Micro service to watch remote bank releases
