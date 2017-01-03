@@ -21,11 +21,3 @@ Endpoint: /api/release/metrics
 # Run
 
 python bin/biomaj_release.py
-
-## Web server
-
-In bin directory:
-export BIOMAJ_CONFIG=path_to_config.yml
-gunicorn biomaj-release.biomaj_release_web:app
-
-Web processes should be behind a proxy/load balancer, API base url /api/release

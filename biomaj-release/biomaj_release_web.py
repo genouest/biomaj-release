@@ -8,6 +8,9 @@ from flask import request
 
 from prometheus_client import Gauge
 from prometheus_client.exposition import generate_latest
+from prometheus_client import multiprocess
+from prometheus_client import CollectorRegistry
+
 
 import consul
 
@@ -29,7 +32,7 @@ BiomajConfig.load_config(config['biomaj']['config'])
 
 app = Flask(__name__)
 
-biomaj_release_metric = Gauge("biomaj_release", "Bank remote release updates", ['bank', 'release'])
+biomaj_release_metric = Gauge("biomaj_release", "Bank remote release updates", ['bank'])
 
 
 def consul_declare(config):
@@ -50,18 +53,19 @@ def ping():
 
 @app.route('/metrics', methods=['GET'])
 def metrics():
-    return generate_latest()
+    registry = CollectorRegistry()
+    multiprocess.MultiProcessCollector(registry)
+    return generate_latest(registry)
 
 
 @app.route('/api/release/metrics', methods=['POST'])
 def add_metrics():
     '''
-    Expects a JSON request with an array of {'bank': 'bank_name', 'release': '123'}
+    Expects a JSON request with an array of {'bank': 'bank_name'}
     '''
     procs = request.get_json()
     for proc in procs:
-        if 'release' in proc and proc['release']:
-            biomaj_release_metric.labels(proc['bank'], proc['release']).inc()
+        biomaj_release_metric.labels(proc['bank']).inc()
     return jsonify({'msg': 'OK'})
 
 
