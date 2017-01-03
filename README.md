@@ -4,9 +4,17 @@ Biomaj remote bank release watcher
 
 in development
 
-scan every day remote banks release modifications and send stats to prometheus with bank/release info
+Scan every day remote banks release modifications and send stats to prometheus and influxdb about new release detection.
+When a new release is detected, according to minimal delay configuration (in global or bank properties), a new bank update is sent.
 
-then goal is to create an intelligent cron mapping for banks according to their remote bank update average time and bank update duration
+If influxdb is available and updated with bank updates, minimal delay will also be computed based on mean workflow duration. In any case, minimal duration is 1 day.
+
+Properties in global.properties and your bank property file:
+
+    schedule.delay=3 # minimal 3 days between checks
+    schedule.auto=true # Default=true, if false, auto scan is disabled
+
+Program will try to increase delay between updates when no new release is detected and to decrease it when a new release occurs.
 
 
 # Development
@@ -15,7 +23,7 @@ then goal is to create an intelligent cron mapping for banks according to their 
 
 # Prometheus metrics
 
-Endpoint: /api/release/metrics
+Endpoint: /metrics
 
 
 # Run
