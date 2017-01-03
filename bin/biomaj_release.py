@@ -8,6 +8,8 @@ import redis
 import consul
 from flask import Flask
 from flask import jsonify
+from flask import request
+from influxdb import InfluxDBClient
 import requests
 import yaml
 
@@ -25,7 +27,9 @@ if 'BIOMAJ_CONFIG' in os.environ:
 
 app = Flask(__name__)
 
+
 app.config['biomaj_release_metric'] = Gauge("biomaj_release", "Bank remote release updates", ['bank'])
+
 
 @app.route('/api/release-daemon')
 def ping():
@@ -103,7 +107,10 @@ class ReleaseService(object):
 
         self.logger.info('Release service started')
 
-    def get_next_check_in(self, check_in, attempts):
+    def get_next_check_in(self, check_in, attempts, min_delay=1):
+        if check_in < min_delay:
+            return min_delay
+
         if check_in == 1:
             if attempts < 3:
                 return check_in
@@ -126,34 +133,64 @@ class ReleaseService(object):
                 return 90
         return 90
 
-    def get_previous_check_in(self, check_in):
+    def get_previous_check_in(self, check_in, min_delay=1):
         if check_in == 1:
-            return check_in
-        if check_in <= 7:
-            return check_in - 1
-        if check_in <= 14:
-            return check_in - 7
-        if check_in <= 30:
-            return check_in - 14
-        if check_in <= 90:
-            return check_in - 30
-        return 90
-
+            new_check_in = check_in
+        elif check_in <= 7:
+            new_check_in = check_in - 1
+        elif check_in <= 14:
+            new_check_in = check_in - 7
+        elif check_in <= 30:
+            new_check_in = check_in - 14
+        elif check_in <= 90:
+            new_check_in = check_in - 30
+        else:
+            new_check_in = 90
+        if new_check_in <= min_delay:
+            return min_delay
+        return new_check_in
 
     def check(self):
         self.logger.info('Check for banks releases')
         current = datetime.datetime.now()
         next_run = current
-        banks = Bank.list()
         while True:
+            banks = Bank.list()
+            influxdb = None
+            if not banks:
+                time.sleep(3600)
+                continue
+
+            bank = Bank(banks[0]['name'], no_log=True)
+            db_host = bank.config.get('influxdb.host', default=None)
+            if db_host:
+                db_port = int(bank.config.get('influxdb.port', default='8086'))
+                db_user = bank.config.get('influxdb.user', default=None)
+                db_password = bank.config.get('influxdb.password', default=None)
+                db_name = bank.config.get('influxdb.db', default='biomaj')
+                if db_user and db_password:
+                    influxdb = InfluxDBClient(host=db_host, port=db_port, username=db_user, password=db_password, database=db_name)
+                else:
+                    influxdb = InfluxDBClient(host=db_host, port=db_port, database=db_name)
+
             for one_bank in banks:
                 bank_name = one_bank['name']
                 new_bank_available = False
                 try:
                     bank = Bank(bank_name, no_log=True)
+                    # in days
+                    min_delay = int(bank.config.get('schedule.delay', default=0)) * 3600 * 24
                     if not bank.config.get_bool('schedule.auto', default=True):
                         self.logger.info('Skip bank %s per configuration' % (bank_name))
                         continue
+                    # Get mean workflow update duration
+                    if influxdb:
+                        res = influxdb.query('select mean("value") from "biomaj.workflow.duration" where "bank" =~ /^%s$/' % (bank_name))
+                        if res:
+                            for r in res:
+                                min_delay = max(min_delay, int(r[0]['mean'] / (3600 * 24)))
+                                self.logger.debug('Minimum delay based on mean workflow duration and config: %d' % (min_delay))
+
                     prev_release = self.redis_client.get(self.config['redis']['prefix'] + ':release:last:' + bank.name)
                     cur_check_time = datetime.datetime.now()
                     cur_check_timestamp = time.mktime(cur_check_time.timetuple())
@@ -165,8 +202,9 @@ class ReleaseService(object):
                     attempts = self.redis_client.get(self.config['redis']['prefix'] + ':release:attempts:' + bank.name)
                     if not attempts:
                         attempts = 0
+                    attempts = int(attempts)
 
-                    if last_check_timestamp is not None and cur_check_timestamp < int(last_check_timestamp) + (int(planned_check_in) * 3600 * 24):
+                    if last_check_timestamp is not None and cur_check_timestamp < int(last_check_timestamp) + (int(planned_check_in) * 3600 * 24) and cur_check_timestamp < (int(last_check_timestamp) + (min_delay * 3600 * 24)):
                         # Date for next planned check not reached, continue to next bank
                         self.logger.debug('plan trigger not reached, skipping: %s' % (str(datetime.datetime.fromtimestamp(int(last_check_timestamp) + (int(planned_check_in) * 3600 * 24)))))
                         continue
@@ -177,7 +215,20 @@ class ReleaseService(object):
                             # Send metric
                             try:
                                 metrics = [{'bank': bank.name, 'release': remoterelease}]
-                                requests.post(self.config['web']['local_endpoint'] + '/api/release/metrics', json=metrics)
+                                requests.post('http://localhost:' + str(self.config['web']['port']) + '/api/release/metrics', json=metrics)
+                                if influxdb:
+                                    influx_metric = {
+                                         "measurement": 'biomaj.release.new',
+                                             "fields": {
+                                                 "value": 1
+                                                 },
+                                            "tags": {
+                                                "bank": bank_name
+                                            }
+                                    }
+                                    metrics = [influx_metric]
+
+                                    influxdb.write_points(metrics, time_precision="s")
                             except Exception as e:
                                 logging.error('Failed to post metrics: ' + str(e))
                             new_bank_available = True
@@ -191,21 +242,23 @@ class ReleaseService(object):
                     check_in = self.redis_client.get(self.config['redis']['prefix'] + ':release:check_in:' + bank.name)
                     if not check_in:
                         check_in = 1
+                    check_in = int(check_in)
 
                     if not new_bank_available:
-                        next_check_in = self.get_next_check_in(check_in, attempts + 1)
+                        next_check_in = self.get_next_check_in(check_in, attempts + 1, min_delay=min_delay)
                         self.redis_client.incr(self.config['redis']['prefix'] + ':release:attempts:' + bank.name)
                     else:
                         next_check_in = check_in
                         if attempts == 0:
                             # Got a match on first attempt, try to reduce duration
-                            next_check_in = self.get_previous_check_in(check_in)
+                            next_check_in = self.get_previous_check_in(check_in, min_delay=min_delay)
                         else:
-                            next_check_in = check_in * attemps
+                            next_check_in = check_in * attempts
                     self.redis_client.set(self.config['redis']['prefix'] + ':release:check_in:' + bank.name, next_check_in)
                     self.redis_client.set(self.config['redis']['prefix'] + ':release:last_check:' + bank.name, int(cur_check_timestamp))
                     self.logger.debug('Next check in: %d days' % (next_check_in))
                 except Exception as e:
+                    self.logger.exception(e)
                     self.logger.error('Failed to get remote release for %s: %s' % (bank_name, str(e)))
             next_run = current + datetime.timedelta(days=1)
             while current < next_run:

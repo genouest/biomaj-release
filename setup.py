@@ -48,6 +48,7 @@ config = {
                          'flask',
                          'python-consul',
                          'prometheus_client',
+                         'influxdb'
                         ],
     'tests_require': ['nose', 'mock'],
     'test_suite': 'nose.collector',
