@@ -30,8 +30,7 @@ app = Flask(__name__)
 
 app.config['biomaj_release_metric'] = Gauge("biomaj_release", "Bank remote release updates", ['bank'])
 
-
-@app.route('/api/release-daemon')
+@app.route('/api/release')
 def ping():
     return jsonify({'msg': 'pong'})
 
@@ -51,7 +50,33 @@ def add_metrics():
         app.config['biomaj_release_metric'].labels(proc['bank']).inc()
     return jsonify({'msg': 'OK'})
 
+@app.route('/api/release/schedule', methods=['GET'])
+def schedule():
+    banks = Bank.list()
+    schedule = []
+    if banks:
+        for bank in banks:
+            next_check = app.config['redis_client'].get(app.config['redis_prefix'] + ':release:next_check:' + bank['name'])
+            if not next_check:
+                schedule.append({'name': bank['name'], 'next': None})
+            else:
+                schedule.append({'name': bank['name'], 'next': int(next_check)})
+
+    response = jsonify({'schedule': schedule})
+    response.headers.add('Last-Modified', datetime.datetime.now())
+    response.headers.add('Cache-Control', 'public,max-age=%d' % (3600))
+    return response
+
+
 def start_web(config):
+    redis_client = redis.StrictRedis(
+        host=config['redis']['host'],
+        port=config['redis']['port'],
+        db=config['redis']['db'],
+        decode_responses=True
+    )
+    app.config['redis_client'] = redis_client
+    app.config['redis_prefix'] = config['redis']['prefix']
     app.run(host='0.0.0.0', port=config['web']['port'])
 
 
@@ -59,14 +84,14 @@ def consul_declare(config):
     if config['consul']['host']:
         consul_agent = consul.Consul(host=config['consul']['host'])
         consul_agent.agent.service.register(
-            'biomaj-release-daemon',
+            'biomaj-release',
             service_id=config['consul']['id'],
             address=config['web']['hostname'],
             port=config['web']['port'],
             tags=['biomaj']
         )
         check = consul.Check.http(
-            url='http://' + config['web']['hostname'] + ':' + str(config['web']['port']) + '/api/release-daemon',
+            url='http://' + config['web']['hostname'] + ':' + str(config['web']['port']) + '/api/release',
             interval=20
         )
         consul_agent.agent.check.register(
@@ -92,6 +117,7 @@ class ReleaseService(object):
         if self.config['consul']['host']:
             web_thread = threading.Thread(target=start_web, args=(self.config,))
             web_thread.start()
+
         if 'log_config' in self.config:
             for handler in list(self.config['log_config']['handlers'].keys()):
                 self.config['log_config']['handlers'][handler] = dict(self.config['log_config']['handlers'][handler])
@@ -178,6 +204,14 @@ class ReleaseService(object):
                 new_bank_available = False
                 try:
                     bank = Bank(bank_name, no_log=True)
+                    # If bank KO or locked, skip
+                    if bank.is_locked():
+                        self.logger.info('Bank %s locked, operation in progress, skip check')
+                        continue
+                    bank_status = bank.get_status()
+                    if 'over' not in bank_status or not bank_status['over']['status']:
+                        self.logger.info('Bank %s failed to finish a previous run, skipping')
+                        continue
                     # in days
                     min_delay = int(bank.config.get('schedule.delay', default=0)) * 3600 * 24
                     if not bank.config.get_bool('schedule.auto', default=True):
@@ -256,6 +290,7 @@ class ReleaseService(object):
                             next_check_in = check_in * attempts
                     self.redis_client.set(self.config['redis']['prefix'] + ':release:check_in:' + bank.name, next_check_in)
                     self.redis_client.set(self.config['redis']['prefix'] + ':release:last_check:' + bank.name, int(cur_check_timestamp))
+                    self.redis_client.set(self.config['redis']['prefix'] + ':release:next_check:' + bank.name, int(cur_check_timestamp) + next_check_in)
                     self.logger.debug('Next check in: %d days' % (next_check_in))
                 except Exception as e:
                     self.logger.exception(e)
