@@ -43,6 +43,7 @@ config = {
     ],
     'install_requires': [
                          'biomaj',
+                         'biomaj-daemon',
                          'redis',
                          'PyYAML',
                          'flask',

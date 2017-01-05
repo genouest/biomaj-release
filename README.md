@@ -23,7 +23,11 @@ Program will try to increase delay between updates when no new release is detect
 
 # Prometheus metrics
 
-Endpoint: /metrics
+Endpoint:
+
+    /metrics
+    /api/release/schedule/bank : schedule checks for all banks
+    /api/release/schedule/bank/<bank> : schedule check for *bank*
 
 
 # Run

@@ -1,6 +1,5 @@
 biomaj
-biomaj-user
-biomaj-zipkin
+biomaj-daemon
 redis
 PyYAML
 flask
