@@ -314,7 +314,8 @@ class ReleaseService(object):
                             options = Options({
                                 'bank': bank.name,
                                 'update': True,
-                                'user': run_as
+                                'user': run_as,
+                                'proxy': self.config['web']['local_endpoint']
                             })
                             BmajUtils.biomaj_bank_update_request(options, self.config)
                         else:
