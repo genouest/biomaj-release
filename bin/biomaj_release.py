@@ -256,7 +256,9 @@ class ReleaseService(object):
                         res = influxdb.query('select mean("value") from "biomaj.workflow.duration" where "bank" =~ /^%s$/' % (bank_name))
                         if res:
                             for r in res:
-                                min_delay = max(min_delay, int(r[0]['mean'] / (3600 * 24)))
+                                mean_duration = r[0]['mean']
+                                self.logger.debug('Mean worflow duration: %s seconds' % (str(mean_duration)))
+                                min_delay = max(min_delay, int(mean_duration / (3600 * 24)))
                                 self.logger.debug('Minimum delay based on mean workflow duration and config: %d' % (min_delay))
 
                     prev_release = self.redis_client.get(self.config['redis']['prefix'] + ':release:last:' + bank.name)
@@ -271,8 +273,11 @@ class ReleaseService(object):
                     if not attempts:
                         attempts = 0
                     attempts = int(attempts)
-
-                    if last_check_timestamp is not None and cur_check_timestamp < int(last_check_timestamp) + (int(planned_check_in) * 3600 * 24) and cur_check_timestamp < (int(last_check_timestamp) + (min_delay * 3600 * 24)):
+                    if last_check_timestamp:
+                        self.logger.debug('Current: %s, last check: %s, planned check %s, vs min delay %s' % (str(cur_check_timestamp), str(last_check_timestamp), str(int(last_check_timestamp) + (int(planned_check_in) * 3600 * 24)), str(int(last_check_timestamp) + (min_delay * 3600 * 24))))
+                    else:
+                        self.logger.debug('no previous check')
+                    if last_check_timestamp is not None and (cur_check_timestamp < int(last_check_timestamp) + (int(planned_check_in) * 3600 * 24) or cur_check_timestamp < (int(last_check_timestamp) + (min_delay * 3600 * 24))):
                         # Date for next planned check not reached, continue to next bank
                         self.logger.debug('plan trigger not reached, skipping: %s' % (str(datetime.datetime.fromtimestamp(int(last_check_timestamp) + (int(planned_check_in) * 3600 * 24)))))
                         continue
