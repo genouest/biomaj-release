@@ -19,6 +19,7 @@ from prometheus_client.exposition import generate_latest
 from biomaj_core.utils import Utils
 from biomaj.bank import Bank
 from biomaj_core.config import BiomajConfig
+import biomaj_daemon.daemon.utils as BmajUtils
 
 config_file = 'config.yml'
 if 'BIOMAJ_CONFIG' in os.environ:
@@ -50,8 +51,9 @@ def add_metrics():
         app.config['biomaj_release_metric'].labels(proc['bank']).inc()
     return jsonify({'msg': 'OK'})
 
+
 @app.route('/api/release/schedule', methods=['GET'])
-def schedule():
+def schedule_all():
     banks = Bank.list()
     schedule = []
     if banks:
@@ -67,6 +69,20 @@ def schedule():
     response.headers.add('Cache-Control', 'public,max-age=%d' % (3600))
     return response
 
+
+@app.route('/api/release/schedule/bank/<bank>', methods=['GET'])
+def schedule_bank(bank):
+    schedule = []
+    next_check = app.config['redis_client'].get(app.config['redis_prefix'] + ':release:next_check:' + bank)
+    if not next_check:
+        schedule.append({'name': bank, 'next': None})
+    else:
+        schedule.append({'name': bank, 'next': int(next_check)})
+
+    response = jsonify({'schedule': schedule})
+    response.headers.add('Last-Modified', datetime.datetime.now())
+    response.headers.add('Cache-Control', 'public,max-age=%d' % (3600))
+    return response
 
 def start_web(config):
     redis_client = redis.StrictRedis(
@@ -100,6 +116,24 @@ def consul_declare(config):
             service_id=config['consul']['id']
         )
 
+class Options(object):
+    def __init__(self, d=None):
+        if d is not None:
+            self.__dict__ = d
+
+    def has_option(self, option):
+        if hasattr(self, option):
+            return True
+        else:
+            return False
+
+    def get_option(self, option):
+        """
+        Gets an option if present, else return None
+        """
+        if hasattr(self, option):
+            return getattr(self, option)
+        return None
 
 class ReleaseService(object):
 
@@ -268,8 +302,16 @@ class ReleaseService(object):
                             new_bank_available = True
                             self.redis_client.set(self.config['redis']['prefix'] + ':release:last:' + bank.name, remoterelease)
                             self.redis_client.set(self.config['redis']['prefix'] + ':release:attempts:' + bank.name, 0)
-                            # TODO send bank update request
-                            self.logger.warn('TODO: Should send an update request')
+                            self.logger.debug('Send an update request')
+                            run_as = 'biomaj'
+                            if 'run_as' in self.config['biomaj'] and self.config['biomaj']['run_as']:
+                                run_as = self.config['biomaj']['run_as']
+                            options = Options({
+                                'bank': bank.name,
+                                'update': True,
+                                'user': run_as
+                            })
+                            BmajUtils.biomaj_bank_update_request(options, self.config)
                         else:
                             self.logger.debug('Same %s release' % (bank.name))
 
