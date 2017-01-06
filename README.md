@@ -17,6 +17,10 @@ Properties in global.properties and your bank property file:
 Program will try to increase delay between updates when no new release is detected and to decrease it when a new release occurs.
 
 
+# Requirements
+
+redis
+
 # Development
 
     flake8 --ignore E501 biomaj-release
