@@ -282,6 +282,8 @@ class ReleaseService(object):
                         self.logger.debug('plan trigger not reached, skipping: %s' % (str(datetime.datetime.fromtimestamp(int(last_check_timestamp) + (int(planned_check_in) * 3600 * 24)))))
                         continue
                     (res, remoterelease) = bank.check_remote_release()
+                    if not res:
+                        self.logger.warn('Failed to get remote release for %s' % (bank.name))
                     if res and remoterelease:
                         if not prev_release or prev_release != remoterelease:
                             self.logger.info('New %s remote release: %s' % (bank.name, str(remoterelease)))
@@ -317,7 +319,11 @@ class ReleaseService(object):
                                 'user': run_as,
                                 'proxy': self.config['web']['local_endpoint']
                             })
-                            BmajUtils.biomaj_bank_update_request(options, self.config)
+                            execute_update = bank.config.get_bool('schedule.execute', default=True)
+                            if execute_update:
+                                BmajUtils.biomaj_bank_update_request(options, self.config)
+                            else:
+                                self.logger.debug('schedule.execute is False, skipping auto update of the bank %s' % (bank.name))
                         else:
                             self.logger.debug('Same %s release' % (bank.name))
 
