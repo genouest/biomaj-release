@@ -244,7 +244,7 @@ class ReleaseService(object):
                         continue
                     bank_status = bank.get_status()
                     if 'over' not in bank_status or not bank_status['over']['status']:
-                        self.logger.info('Bank %s failed to finish a previous run, skipping', bank_name)
+                        self.logger.info('Bank %s failed to finish a previous run, skipping' % (bank_name))
                         continue
                     # in days
                     min_delay = int(bank.config.get('schedule.delay', default=0)) * 3600 * 24
