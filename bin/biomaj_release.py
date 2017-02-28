@@ -350,7 +350,7 @@ class ReleaseService(object):
                             next_check_in = check_in * attempts
                     self.redis_client.set(self.config['redis']['prefix'] + ':release:check_in:' + bank.name, next_check_in)
                     self.redis_client.set(self.config['redis']['prefix'] + ':release:last_check:' + bank.name, int(cur_check_timestamp))
-                    self.redis_client.set(self.config['redis']['prefix'] + ':release:next_check:' + bank.name, int(cur_check_timestamp) + next_check_in)
+                    self.redis_client.set(self.config['redis']['prefix'] + ':release:next_check:' + bank.name, int(cur_check_timestamp) + (next_check_in * 3600 * 24))
                     self.logger.debug('Next check for %s in: %d days' % (bank.name, next_check_in))
                 except Exception as e:
                     self.logger.exception(e)
