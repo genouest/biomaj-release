@@ -2,8 +2,6 @@
 
 Biomaj remote bank release watcher
 
-in development
-
 Scan every day remote banks release modifications and send stats to prometheus and influxdb about new release detection.
 When a new release is detected, according to minimal delay configuration (in global or bank properties), a new bank update is sent.
 

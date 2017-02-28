@@ -3,6 +3,7 @@ import logging
 import datetime
 import time
 import threading
+import copy
 import redis
 
 import consul
@@ -247,7 +248,7 @@ class ReleaseService(object):
                         self.logger.info('Bank %s failed to finish a previous run, skipping' % (bank_name))
                         continue
                     # in days
-                    min_delay = int(bank.config.get('schedule.delay', default=0)) * 3600 * 24
+                    min_delay = int(bank.config.get('schedule.delay', default=0))
                     if not bank.config.get_bool('schedule.auto', default=True):
                         self.logger.info('Skip bank %s per configuration' % (bank_name))
                         continue
@@ -321,7 +322,12 @@ class ReleaseService(object):
                             })
                             execute_update = bank.config.get_bool('schedule.execute', default=True)
                             if execute_update:
-                                BmajUtils.biomaj_bank_update_request(options, self.config)
+                                bmaj_config = copy.deepcopy(self.config)
+                                daemon_prefix = 'biomajdaemon'
+                                if 'REDIS_DAEMON_PREFIX' in os.environ and os.environ['REDIS_DAEMON_PREFIX']:
+                                    daemon_prefix = os.environ['REDIS_DAEMON_PREFIX']
+                                bmaj_config['redis']['prefix'] = daemon_prefix
+                                BmajUtils.biomaj_bank_update_request(options, bmaj_config)
                             else:
                                 self.logger.debug('schedule.execute is False, skipping auto update of the bank %s' % (bank.name))
                         else:
@@ -345,7 +351,7 @@ class ReleaseService(object):
                     self.redis_client.set(self.config['redis']['prefix'] + ':release:check_in:' + bank.name, next_check_in)
                     self.redis_client.set(self.config['redis']['prefix'] + ':release:last_check:' + bank.name, int(cur_check_timestamp))
                     self.redis_client.set(self.config['redis']['prefix'] + ':release:next_check:' + bank.name, int(cur_check_timestamp) + next_check_in)
-                    self.logger.debug('Next check in: %d days' % (next_check_in))
+                    self.logger.debug('Next check for %s in: %d days' % (bank.name, next_check_in))
                 except Exception as e:
                     self.logger.exception(e)
                     self.logger.error('Failed to get remote release for %s: %s' % (bank_name, str(e)))
