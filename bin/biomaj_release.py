@@ -28,6 +28,8 @@ if 'BIOMAJ_CONFIG' in os.environ:
 
 
 app = Flask(__name__)
+app_log = logging.getLogger('werkzeug')
+app_log.setLevel(logging.ERROR)
 
 
 app.config['biomaj_release_metric'] = Gauge("biomaj_release", "Bank remote release updates", ['bank'])
@@ -280,7 +282,7 @@ class ReleaseService(object):
                         self.logger.debug('no previous check')
                     if last_check_timestamp is not None and (cur_check_timestamp < int(last_check_timestamp) + (int(planned_check_in) * 3600 * 24) or cur_check_timestamp < (int(last_check_timestamp) + (min_delay * 3600 * 24))):
                         # Date for next planned check not reached, continue to next bank
-                        self.logger.debug('plan trigger not reached, skipping: %s' % (str(datetime.datetime.fromtimestamp(int(last_check_timestamp) + (int(planned_check_in) * 3600 * 24)))))
+                        self.logger.info('plan trigger not reached, skipping: %s' % (str(datetime.datetime.fromtimestamp(int(last_check_timestamp) + (int(planned_check_in) * 3600 * 24)))))
                         continue
                     (res, remoterelease) = bank.check_remote_release()
                     if not res:
