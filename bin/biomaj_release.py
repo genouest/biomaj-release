@@ -151,9 +151,8 @@ class ReleaseService(object):
 
         BiomajConfig.load_config(self.config['biomaj']['config'])
 
-        if self.config['consul']['host']:
-            web_thread = threading.Thread(target=start_web, args=(self.config,))
-            web_thread.start()
+        web_thread = threading.Thread(target=start_web, args=(self.config,))
+        web_thread.start()
 
         if 'log_config' in self.config:
             for handler in list(self.config['log_config']['handlers'].keys()):

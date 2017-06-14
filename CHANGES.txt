@@ -1,2 +1,4 @@
+3.0.1:
+  Start internal web server even if consul is not declared
 3.0.0:
   Micro service to watch remote bank releases
