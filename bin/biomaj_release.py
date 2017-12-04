@@ -245,9 +245,10 @@ class ReleaseService(object):
                         self.logger.info('Bank %s locked, operation in progress, skip check')
                         continue
                     bank_status = bank.get_status()
-                    if 'over' not in bank_status or not bank_status['over']['status']:
-                        self.logger.info('Bank %s failed to finish a previous run, skipping' % (bank_name))
-                        continue
+                    #if 'over' not in bank_status or not bank_status['over']['status']:
+                    #    self.logger.info('Bank %s failed to finish a previous run, skipping' % (bank_name))
+                    #    continue
+                    
                     # in days
                     min_delay = int(bank.config.get('schedule.delay', default=0))
                     if not bank.config.get_bool('schedule.auto', default=True):
@@ -315,11 +316,12 @@ class ReleaseService(object):
                             run_as = 'biomaj'
                             if 'run_as' in self.config['biomaj'] and self.config['biomaj']['run_as']:
                                 run_as = self.config['biomaj']['run_as']
+                            proxy = Utils.get_service_endpoint(self.config, 'daemon')
                             options = Options({
                                 'bank': bank.name,
                                 'update': True,
                                 'user': run_as,
-                                'proxy': self.config['web']['local_endpoint']
+                                'proxy': proxy
                             })
                             execute_update = bank.config.get_bool('schedule.execute', default=True)
                             if execute_update:
