@@ -1,6 +1,6 @@
 3.0.2:
   Allow per service endpoint definition
-  If banbk failed, try anyway
+  If bank failed, try anyway
 3.0.1:
   Start internal web server even if consul is not declared
 3.0.0:
