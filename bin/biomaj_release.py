@@ -107,7 +107,13 @@ def consul_declare(config):
             service_id=config['consul']['id'],
             address=config['web']['hostname'],
             port=config['web']['port'],
-            tags=['biomaj']
+            tags=[
+                'biomaj',
+                'api',
+                'traefik.backend=biomaj-release',
+                'traefik.frontend.rule=PathPrefix:/api/release',
+                'traefik.enable=true'
+            ]
         )
         check = consul.Check.http(
             url='http://' + config['web']['hostname'] + ':' + str(config['web']['port']) + '/api/release',

@@ -1,6 +1,7 @@
 3.0.2:
   Allow per service endpoint definition
   If bank failed, try anyway
+  Add tags for traefik support
 3.0.1:
   Start internal web server even if consul is not declared
 3.0.0:

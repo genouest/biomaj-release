@@ -1,0 +1,32 @@
+language: python
+sudo: false
+python:
+- '2.7'
+- '3.4'
+- '3.5'
+- '3.6'
+services:
+- mongodb
+- elasticsearch
+branches:
+  except:
+  - "/^feature.*$/"
+install:
+- pip install flake8
+- pip install -r requirements.txt
+- pip install coverage
+- pip install python-coveralls
+- python setup.py -q install
+before_script:
+- sleep 10
+script:
+- flake8 --ignore E501,E123 biomaj
+deploy:
+  provider: pypi
+  skip_existing: true
+  user: osallou
+  password:
+    secure: 2axAwyfU9Tp9s6TIW75fEGA6MZvMeWkcvXazy/RQQk7vjIfiJ9713Hp0k0LzkYHnY102aC7WSjpOMXV1htHVvg0WRTPhv2EzlrRoYeKqIrAzTtMiO4onSLREv8yXimGlGL41VYLXNvmJ0L0ry4NuMU6pEJcbmZ9FnyXcIoI/1xSMtlSJ54uBnt0Q18e0qt22wBxcjq8iEMnhGNtTO4PVVBlZ00dNUdByz7NEHvaCO7z2Qau0clDJN6lDagzTzAI3TewfRk43OLX7+Nx5K74RTki7fGUiuVQTIUKMV64f+Jbs2NkAJLh/jgkMWAf0yFEAGdAaVr8sQ9UdprGu9Mrwfog/y0MZ+kS8y4It20/9vE3QT0mvtmiCY8GpDu/KUYC4Pjj/timmQ/5KDG2SgSscxSd8lJ14D5u6+QyxEUbvlgHG/rvutRS/ET0fyNR7VbYcZodkUoj2uHG/OsY8d9U/YgmiaU9/U+PWVUoU1LZhZqb7WzGYVhQor0KZgFI1mR1ou4qjYrAnFyVuc9Q636CKWgxd69fIj77htZKdZGRyAsuFOGbuXbn+JSWpXBiXrr/kryM/B7ZIgOQrjAzB7kLPK8rqr7E9tF1xj0qhuD1oY9HRPruMTecg5eateVDm6KwcoEdKoTNmr5T9Zy686ZlrDZTdedfOHaUoxkLk1jvYzwo=
+  distributions: sdist bdist_wheel
+  on:
+    tags: true
