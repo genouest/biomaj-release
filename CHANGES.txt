@@ -1,3 +1,5 @@
+3.0.3:
+  Fix traefik prefix
 3.0.2:
   Allow per service endpoint definition
   If bank failed, try anyway

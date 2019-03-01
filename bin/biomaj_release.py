@@ -112,7 +112,10 @@ def consul_declare(config):
                 'api',
                 'traefik.backend=biomaj-release',
                 'traefik.frontend.rule=PathPrefix:/api/release',
-                'traefik.enable=true'
+                'traefik.enable=true',
+                'traefik-int.backend=biomaj-release',
+                'traefik-int.frontend.rule=PathPrefix:/api/release',
+                'traefik-int.enable=true'
             ]
         )
         check = consul.Check.http(
