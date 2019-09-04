@@ -1,5 +1,7 @@
 # About
 
+[![PyPI version](https://badge.fury.io/py/biomaj-release.svg)](https://badge.fury.io/py/biomaj-release)
+
 Biomaj remote bank release watcher
 
 Scan every day remote banks release modifications and send stats to prometheus and influxdb about new release detection.
