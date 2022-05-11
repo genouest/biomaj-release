@@ -13,6 +13,10 @@ from flask import request
 from influxdb import InfluxDBClient
 import requests
 import yaml
+try:
+    from yaml import CLoader as Loader
+except ImportError:
+    from yaml import Loader
 
 from prometheus_client import Gauge
 from prometheus_client.exposition import generate_latest
@@ -153,7 +157,7 @@ class ReleaseService(object):
         self.logger = logging
         self.session = None
         with open(config_file, 'r') as ymlfile:
-            self.config = yaml.load(ymlfile)
+            self.config = yaml.load(ymlfile, Loader=Loader)
             Utils.service_config_override(self.config)
 
         consul_declare(self.config)
